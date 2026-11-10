@@ -1,0 +1,201 @@
+name: Release to production
+
+# Runs when an issue gets the `ready for production` label.
+# Only RELEASE_APPROVER may add it. The ticket branch is merged into `main` on the runner, the merge result is
+# deployed to production with local tests, and only after a successful deployment is `main` pushed.
+# Everything happens in one run: events created with GITHUB_TOKEN do not start other workflows.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-production
+  cancel-in-progress: false
+
+env:
+  RELEASE_LABEL: "ready for production"
+  RELEASE_APPROVER: "AlesLuKevada"
+  SF_CLI_VERSION: "2.157.8"
+  SF_DISABLE_TELEMETRY: "true"
+  SF_AUTOUPDATE_DISABLE: "true"
+  SF_HIDE_RELEASE_NOTES: "true"
+
+jobs:
+  gate:
+    name: Check label and find branch
+    if: github.event.label.name == 'ready for production'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      approved: ${{ steps.find.outputs.approved }}
+      branch: ${{ steps.find.outputs.branch }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE: ${{ github.event.issue.number }}
+      SENDER: ${{ github.event.sender.login }}
+    steps:
+      - name: Reject label from anyone but the approver
+        id: who
+        run: |
+          if [[ "$SENDER" == "$RELEASE_APPROVER" ]]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --remove-label "$RELEASE_LABEL"
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
+            "@$SENDER only $RELEASE_APPROVER can mark a ticket \`$RELEASE_LABEL\`. The label was removed; nothing was deployed."
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::Label added by $SENDER, not by $RELEASE_APPROVER. Label removed."
+
+      - name: Find the ticket branch
+        id: find
+        if: steps.who.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          reject() {
+            gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --remove-label "$RELEASE_LABEL"
+            gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "Release blocked: $1 The label was removed."
+            echo "::error::$1"
+            exit 1
+          }
+
+          mapfile -t branches < <(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/heads/" --paginate --jq '.[].ref' \
+            | sed 's#^refs/heads/##' \
+            | grep -E "^(feature|fix|chore|docs)/${ISSUE}-" || true)
+
+          if [[ "${#branches[@]}" -eq 0 ]]; then
+            reject "no branch named \`<type>/${ISSUE}-<slug>\` was found."
+          fi
+          if [[ "${#branches[@]}" -gt 1 ]]; then
+            reject "more than one branch belongs to #${ISSUE}: ${branches[*]}."
+          fi
+          branch="${branches[0]}"
+
+          # Everything on the branch must already be in `uat` (that is, tested in UAT).
+          status="$(gh api "repos/$GITHUB_REPOSITORY/compare/uat...${branch}" --jq .status)"
+          if [[ "$status" != "behind" && "$status" != "identical" ]]; then
+            reject "branch \`$branch\` has commits that are not merged into \`uat\`, so they were not tested in UAT."
+          fi
+
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "approved=true" >> "$GITHUB_OUTPUT"
+          echo "Releasing $branch for #$ISSUE."
+
+  release:
+    name: Deploy to production and merge into main
+    needs: gate
+    if: needs.gate.outputs.approved == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      issues: write
+    env:
+      ISSUE: ${{ github.event.issue.number }}
+      BRANCH: ${{ needs.gate.outputs.branch }}
+      PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+    steps:
+      - name: Get release app token
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+
+      - name: Merge the ticket branch into main (local only)
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          bot="${APP_SLUG}[bot]"
+          bot_id="$(gh api "/users/${bot}" --jq .id)"
+          git config user.name "$bot"
+          git config user.email "${bot_id}+${bot}@users.noreply.github.com"
+          if ! git merge --no-ff "origin/${BRANCH}" -m "Merge ${BRANCH} into main (#${ISSUE})"; then
+            git merge --abort || true
+            echo "::error::Merge conflict between ${BRANCH} and main."
+            echo "MERGE_CONFLICT=true" >> "$GITHUB_ENV"
+            exit 1
+          fi
+
+      - name: Check for metadata
+        id: meta
+        run: echo "present=$(bash .github/scripts/has-metadata.sh)" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/sf-setup
+        if: steps.meta.outputs.present == 'true'
+        with:
+          cli-version: ${{ env.SF_CLI_VERSION }}
+
+      - uses: ./.github/actions/sf-login
+        if: steps.meta.outputs.present == 'true'
+        with:
+          client-id: ${{ secrets.SF_CLIENT_ID }}
+          username: ${{ secrets.SF_USERNAME }}
+          jwt-key: ${{ secrets.SF_JWT_KEY }}
+          login-url: ${{ vars.SF_LOGIN_URL }}
+
+      - name: Deploy to production with local tests
+        if: steps.meta.outputs.present == 'true'
+        run: |
+          sf project deploy start \
+            --source-dir force-app \
+            --test-level RunLocalTests \
+            --target-org target \
+            --wait 60
+
+      - name: Push main and delete the ticket branch
+        run: |
+          set -euo pipefail
+          git push origin HEAD:main
+          echo "PUSHED=true" >> "$GITHUB_ENV"
+          git push origin --delete "${BRANCH}"
+
+      - name: Close the issue
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue close "$ISSUE" --repo "$GITHUB_REPOSITORY" --reason completed --comment \
+            "Released to production by [this run]($RUN_URL): \`${BRANCH}\` is merged into \`main\` and the branch is deleted."
+
+      - name: Move the card to Done
+        if: env.PROJECT_NUMBER != ''
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: bash .github/scripts/set-project-status.sh "$ISSUE" "Done"
+
+      - name: Report failure on the issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [[ "${MERGE_CONFLICT:-}" == "true" ]]; then
+            reason="\`${BRANCH}\` conflicts with \`main\`. Merge \`main\` into the branch, resolve the conflicts and get it through \`uat\` again."
+          else
+            reason="see [the run]($RUN_URL) for details."
+          fi
+          if [[ "${PUSHED:-}" == "true" ]]; then
+            gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
+              "The release is deployed to production and merged into \`main\`, but a later step failed: $reason"
+            exit 0
+          fi
+          gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --remove-label "$RELEASE_LABEL" || true
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
+            "Release to production failed: $reason Nothing was pushed to \`main\`. The label was removed."

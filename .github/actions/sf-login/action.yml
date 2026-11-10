@@ -1,0 +1,46 @@
+name: Log in to a Salesforce org
+description: >
+  Authorizes the Salesforce CLI with the OAuth 2.0 JWT bearer flow and sets the org as the default target org
+  (alias "target"). Prints nothing about the org, the user or the key.
+
+inputs:
+  client-id:
+    description: Consumer key of the External Client App in the org
+    required: true
+  username:
+    description: Username of the CI user in the org
+    required: true
+  jwt-key:
+    description: PEM private key whose certificate is uploaded to the External Client App
+    required: true
+  login-url:
+    description: Login URL (https://login.salesforce.com or the org's My Domain URL)
+    required: false
+    default: https://login.salesforce.com
+
+runs:
+  using: composite
+  steps:
+    - name: Authorize org (JWT)
+      shell: bash
+      env:
+        SF_CLIENT_ID: ${{ inputs.client-id }}
+        SF_USERNAME: ${{ inputs.username }}
+        SF_JWT_KEY: ${{ inputs.jwt-key }}
+        SF_LOGIN_URL: ${{ inputs.login-url }}
+      run: |
+        set -euo pipefail
+        key_file="$(mktemp)"
+        trap 'rm -f "$key_file"' EXIT
+        printf '%s\n' "$SF_JWT_KEY" > "$key_file"
+        if ! sf org login jwt \
+              --client-id "$SF_CLIENT_ID" \
+              --jwt-key-file "$key_file" \
+              --username "$SF_USERNAME" \
+              --instance-url "$SF_LOGIN_URL" \
+              --alias target \
+              --set-default > /dev/null 2>&1; then
+          echo "::error::JWT authorization failed. Check the environment secrets SF_CLIENT_ID, SF_USERNAME, SF_JWT_KEY and the External Client App policies in the org."
+          exit 1
+        fi
+        echo "Authorized the target org."

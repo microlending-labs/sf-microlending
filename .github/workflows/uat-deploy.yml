@@ -1,0 +1,58 @@
+name: Deploy to UAT
+
+on:
+  push:
+    branches: [uat]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uat-deploy
+  cancel-in-progress: false
+
+env:
+  SF_CLI_VERSION: "2.157.8"
+  SF_DISABLE_TELEMETRY: "true"
+  SF_AUTOUPDATE_DISABLE: "true"
+  SF_HIDE_RELEASE_NOTES: "true"
+
+jobs:
+  deploy:
+    name: Deploy uat to the UAT org
+    runs-on: ubuntu-latest
+    environment: uat
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check for metadata
+        id: meta
+        run: echo "present=$(bash .github/scripts/has-metadata.sh)" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/sf-setup
+        if: steps.meta.outputs.present == 'true'
+        with:
+          cli-version: ${{ env.SF_CLI_VERSION }}
+
+      - uses: ./.github/actions/sf-login
+        if: steps.meta.outputs.present == 'true'
+        with:
+          client-id: ${{ secrets.SF_CLIENT_ID }}
+          username: ${{ secrets.SF_USERNAME }}
+          jwt-key: ${{ secrets.SF_JWT_KEY }}
+          login-url: ${{ vars.SF_LOGIN_URL }}
+
+      - name: Deploy with local tests
+        if: steps.meta.outputs.present == 'true'
+        run: |
+          sf project deploy start \
+            --source-dir force-app \
+            --test-level RunLocalTests \
+            --target-org target \
+            --wait 60
+
+      - name: Nothing to deploy
+        if: steps.meta.outputs.present != 'true'
+        run: echo "force-app has no metadata yet; skipping deployment."

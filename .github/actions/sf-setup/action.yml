@@ -1,0 +1,22 @@
+name: Set up Salesforce CLI
+description: Installs Node.js and a pinned version of the Salesforce CLI.
+
+inputs:
+  cli-version:
+    description: "@salesforce/cli version to install"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: "22"
+
+    - name: Install Salesforce CLI
+      shell: bash
+      env:
+        CLI_VERSION: ${{ inputs.cli-version }}
+      run: |
+        npm install --global --no-audit --no-fund "@salesforce/cli@${CLI_VERSION}"
+        sf --version

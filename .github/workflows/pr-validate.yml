@@ -1,0 +1,125 @@
+name: PR validation
+
+on:
+  pull_request:
+    branches: [uat]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  SF_CLI_VERSION: "2.157.8"
+  CODE_ANALYZER_VERSION: "5.16.0"
+  SF_DISABLE_TELEMETRY: "true"
+  SF_AUTOUPDATE_DISABLE: "true"
+  SF_HIDE_RELEASE_NOTES: "true"
+
+jobs:
+  branch-rules:
+    name: Branch rules
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check branch name and history
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/scripts/check-branch.sh "$HEAD_REF" "$HEAD_SHA"
+
+  code-analyzer:
+    name: Code Analyzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check for metadata
+        id: meta
+        run: echo "present=$(bash .github/scripts/has-metadata.sh)" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/sf-setup
+        if: steps.meta.outputs.present == 'true'
+        with:
+          cli-version: ${{ env.SF_CLI_VERSION }}
+
+      - name: Install Code Analyzer
+        if: steps.meta.outputs.present == 'true'
+        run: sf plugins install "@salesforce/plugin-code-analyzer@${CODE_ANALYZER_VERSION}"
+
+      - name: Run Code Analyzer (fails on High or Critical)
+        if: steps.meta.outputs.present == 'true'
+        run: |
+          sf code-analyzer run \
+            --workspace . \
+            --target force-app \
+            --severity-threshold 2 \
+            --output-file code-analyzer-results.html \
+            --output-file code-analyzer-results.json
+
+      - name: Upload results
+        if: always() && steps.meta.outputs.present == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: code-analyzer-results
+          path: code-analyzer-results.*
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Nothing to analyze
+        if: steps.meta.outputs.present != 'true'
+        run: echo "force-app has no metadata yet; skipping analysis."
+
+  validate:
+    name: Validate against UAT
+    needs: branch-rules
+    runs-on: ubuntu-latest
+    environment: uat
+    steps:
+      # Checks out the merge result of the pull request and `uat`: exactly what UAT will get after merge.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check for metadata
+        id: meta
+        run: echo "present=$(bash .github/scripts/has-metadata.sh)" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/sf-setup
+        if: steps.meta.outputs.present == 'true'
+        with:
+          cli-version: ${{ env.SF_CLI_VERSION }}
+
+      - uses: ./.github/actions/sf-login
+        if: steps.meta.outputs.present == 'true'
+        with:
+          client-id: ${{ secrets.SF_CLIENT_ID }}
+          username: ${{ secrets.SF_USERNAME }}
+          jwt-key: ${{ secrets.SF_JWT_KEY }}
+          login-url: ${{ vars.SF_LOGIN_URL }}
+
+      - name: Check-only deployment with local tests
+        if: steps.meta.outputs.present == 'true'
+        run: |
+          sf project deploy validate \
+            --source-dir force-app \
+            --test-level RunLocalTests \
+            --target-org target \
+            --wait 60
+
+      - name: Nothing to validate
+        if: steps.meta.outputs.present != 'true'
+        run: echo "force-app has no metadata yet; skipping validation."

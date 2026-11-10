@@ -1,0 +1,29 @@
+# Salesforce CLI local state (org connections, source tracking)
+.sf/
+.sfdx/
+.localdevserver/
+deploy-options.json
+
+# Node
+node_modules/
+coverage/
+npm-debug.log*
+
+# Code Analyzer output
+code-analyzer-results.*
+
+# IDEs and OS files
+.idea/
+IlluminatedCloud/
+.vscode/settings.json
+.DS_Store
+Thumbs.db
+*.log
+
+# Secrets: never commit keys, certificates or env files
+*.key
+*.pem
+*.p12
+*.crt
+.env
+.env.*
