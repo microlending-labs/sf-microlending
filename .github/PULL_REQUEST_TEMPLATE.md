@@ -8,11 +8,21 @@ Ticket: #
 
 <!-- Short list of the metadata and code changed, and why. -->
 
+## Acceptance criteria verified in DEV
+
+<!-- One line per criterion of the ticket, by number: verified / not applicable, and how. -->
+
+- AC1:
+
 ## How to test in UAT
 
-<!-- Steps the reviewer follows in UAT, with the expected result for each. -->
+<!-- Steps the reviewer follows in UAT, with the expected result for each. Refer to criteria by number. -->
 
 1.
+
+## Deliverables
+
+<!-- Everything the ticket's Deliverables section asks for in the PR description. -->
 
 ## Post-deployment steps
 

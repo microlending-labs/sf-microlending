@@ -8,11 +8,11 @@ pull request and code review, is tested in UAT and is released to production by 
 
 | Environment | Org | Who uses it | How changes get there |
 |-------------|-----|-------------|-----------------------|
-| Development | one Developer Edition per developer (alias `lnd-dev`) | the developer | built by hand or deployed from the ticket branch |
-| UAT | shared Developer Edition | reviewer, for acceptance testing | automatically, when a pull request is merged into `uat` |
-| Production | shared Developer Edition | end users | automatically, when the reviewer labels the ticket `ready for production` |
+| Development | one Trailhead Playground per developer (alias `lnd-dev`) | the developer | built by hand or deployed from the ticket branch |
+| UAT | shared Trailhead Playground | reviewer, for acceptance testing | automatically, when a pull request is merged into `uat` |
+| Production | shared Trailhead Playground | end users | automatically, when the reviewer labels the ticket `ready for production` |
 
-There are no sandboxes: every environment is a separate Developer Edition org.
+There are no sandboxes: every environment is a separate Trailhead Playground, which is a Developer Edition org.
 
 ## Branches
 
@@ -51,10 +51,12 @@ docs/runbooks/            manual steps that metadata cannot cover (org setup, po
 
 ## Prerequisites
 
-- [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) (`sf`)
-- [Visual Studio Code](https://code.visualstudio.com/) with the Salesforce Extension Pack
-- Git and a GitHub account with access to this repository
-- A Developer Edition org of your own: <https://developer.salesforce.com/signup>
+- The workstation tools from the onboarding ticket "Set up the development workstation": Git, Visual Studio Code
+  with the Salesforce Extension Pack, [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) (`sf`),
+  a JDK and Node.js LTS.
+- A GitHub account with access to this repository.
+- A DEV org of your own: a Trailhead Playground connected to the CLI as `lnd-dev`, by the onboarding ticket
+  "Create your DEV org and connect it to the CLI". Do not use the Developer Edition signup form: it may be rejected.
 
 Do not run `sf` commands through an anonymizing VPN or proxy: Salesforce freezes users who connect to the API that way
 ([help article 005318944](https://help.salesforce.com/s/articleView?id=005318944&type=1)).
