@@ -40,6 +40,8 @@ pull requests whose branch contains commits from `uat`. If your branch needs a n
 - Fill in every section of the pull request template, including **Post-deployment steps** (write "None" if there are
   none).
 - Keep the pull request to one issue.
+- Refer to acceptance criteria by number (AC1, AC2, …) in the pull request, in review comments and in UAT results.
+  Numbers do not change after a ticket is published.
 - Required checks: **Branch rules**, **Code Analyzer**, **Validate against UAT**. A pull request cannot be merged until
   they pass and the reviewer approves.
 - Changes under `.github/` need approval from the code owner.
@@ -58,17 +60,20 @@ pull requests whose branch contains commits from `uat`. If your branch needs a n
 
 ## Definition of Done
 
-A ticket is done when all of the following are true:
+A ticket delivered as a pull request is done when all of the following are true:
 
 1. The acceptance criteria in the issue are met.
-2. The change is in `force-app/` (or `docs/`, `data/`) on the ticket branch; nothing was changed by hand in UAT or
-   production.
+2. The change is on the ticket branch (`force-app/`, `docs/`, `data/` or another file the ticket names); nothing was
+   changed by hand in UAT or production.
 3. The pull request into `uat` is approved and all required checks are green.
 4. Apex code has tests: at least 85% coverage for new classes and triggers, with assertions, including bulk tests
    for triggers.
 5. Post-deployment steps, if any, are documented in the pull request and in `docs/runbooks/`.
 6. The reviewer tested it in UAT and added the `ready for production` label.
 7. The release pipeline deployed it to production, merged it into `main` and closed the issue.
+
+A ticket whose Deliverables say "No pull request" is done when its acceptance criteria are met and the comment its
+Deliverables ask for is posted on the ticket; items 2-7 do not apply to it.
 
 ## Release to production
 
