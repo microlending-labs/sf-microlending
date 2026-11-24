@@ -86,6 +86,7 @@ jobs:
   validate:
     name: Validate against UAT
     needs: branch-rules
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     environment: uat
     steps:
