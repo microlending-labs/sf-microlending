@@ -44,6 +44,11 @@ pull requests whose branch contains commits from `uat`. If your branch needs a n
   Numbers do not change after a ticket is published.
 - Required checks: **Branch rules**, **Code Analyzer**, **Validate against UAT**. A pull request cannot be merged until
   they pass and the reviewer approves.
+- The three required checks start automatically when a pull request is opened
+  against `uat`, reopened, marked ready for review, receives a new commit, or is
+  edited (its base branch, title or description changes). Changing the base
+  branch of an open pull request to `uat` is enough: there is no need to close
+  and reopen it, and nobody starts the checks by hand.  
 - Changes under `.github/` need approval from the code owner.
 - Pull requests are merged with a merge commit (squash and rebase are disabled): the release pipeline relies on the
   ticket branch commits being present in `uat`.
