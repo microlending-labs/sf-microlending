@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Penalty_Rate_Not_Negative</fullName>
+    <active>true</active>
+    <errorConditionFormula>Penalty_Daily_Rate__c &lt; 0</errorConditionFormula>
+    <errorDisplayField>Penalty_Daily_Rate__c</errorDisplayField>
+    <errorMessage>Daily Penalty Rate cannot be negative.</errorMessage>
+</ValidationRule>
