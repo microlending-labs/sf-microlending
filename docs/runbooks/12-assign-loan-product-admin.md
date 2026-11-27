@@ -1,6 +1,6 @@
 # Assign Loan_Product_Admin (ticket #12)
 
-Applies to: UAT, production. Not needed in DEV (already assigned).
+Applies to: UAT, production and any new DEV org.
 
 ## Steps
 1. Setup -> Users -> Permission Sets -> Loan Product Admin -> Manage Assignments -> Add Assignments.
