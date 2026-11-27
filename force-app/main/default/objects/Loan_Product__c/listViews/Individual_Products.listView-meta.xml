@@ -2,7 +2,15 @@
 <ListView xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Individual_Products</fullName>
     <columns>NAME</columns>
-    <filterScope>Mine</filterScope>
+    <columns>Product_Code__c</columns>
+    <columns>Borrower_Type__c</columns>
+    <columns>Annual_Interest_Rate__c</columns>
+    <columns>Min_Amount__c</columns>
+    <columns>Max_Amount__c</columns>
+    <columns>Min_Term_Months__c</columns>
+    <columns>Max_Term_Months__c</columns>
+    <columns>Is_Active__c</columns>
+    <filterScope>Everything</filterScope>
     <filters>
         <field>Borrower_Type__c</field>
         <operation>equals</operation>
