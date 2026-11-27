@@ -188,21 +188,6 @@
         </values>
     </picklistValues>
     <picklistValues>
-        <picklist>Legal_Form__c</picklist>
-        <values>
-            <fullName>LLC</fullName>
-            <default>false</default>
-        </values>
-        <values>
-            <fullName>Other</fullName>
-            <default>false</default>
-        </values>
-        <values>
-            <fullName>Sole Proprietor</fullName>
-            <default>false</default>
-        </values>
-    </picklistValues>
-    <picklistValues>
         <picklist>Ownership</picklist>
         <values>
             <fullName>Other</fullName>

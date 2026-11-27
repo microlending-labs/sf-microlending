@@ -1,7 +1,7 @@
 # Post-deployment steps: borrower data model (#10)
 
 ## Purpose
-Metadata deployment does not carry profiles, so two settings must be made by hand after the change reaches an org.
+Metadata deployment does not carry profiles, so three settings must be made by hand after the change reaches an org.
 
 ## Applies to
 UAT and production. DEV was configured by hand during development.
